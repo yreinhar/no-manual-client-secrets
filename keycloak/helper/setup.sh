@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-KC_POD=$(kubectl get pod -o name | grep keycloak | head -n1 | cut -d/ -f2)
+KC_POD=$(kubectl get pod -o name -n keycloak | grep keycloak | head -n1 | cut -d/ -f2)
 
 kcadm() {
-  kubectl exec "$KC_POD" -- /opt/keycloak/bin/kcadm.sh "$@"
+  kubectl exec "$KC_POD" -n keycloak -- /opt/keycloak/bin/kcadm.sh "$@"
 }
 
 echo "Login to Keycloak..." >&2

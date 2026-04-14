@@ -69,7 +69,7 @@ create-pod: ## Create example pod
 .PHONY: retrieve-access-token
 retrieve-access-token: ## Retrieve access token from keycloak
 	@echo Retrieve access token... >&2
-	@TOKEN=$$(kubectl exec my-pod -- cat /var/run/secrets/tokens/kctoken); \
+	@TOKEN=$$(kubectl exec my-pod -n $(APP_NAMESPACE) -- cat /var/run/secrets/tokens/kctoken); \
 	curl --insecure -X POST \
 		-d grant_type=client_credentials \
 		-d client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer \
