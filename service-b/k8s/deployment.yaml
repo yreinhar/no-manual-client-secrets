@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-b
+  namespace: service-b
+  labels:
+    app: service-b
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-b
+  template:
+    metadata:
+      labels:
+        app: service-b
+    spec:
+      containers:
+      - name: service-b
+        image: service-b:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: JWKS_URL
+          value: "http://keycloak.keycloak.svc.cluster.local/realms/kubernetes/protocol/openid-connect/certs"
+        - name: ISSUER
+          value: "http://keycloak.example.com/realms/kubernetes"
+        - name: AUDIENCE
+          value: "service-b"
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 5

@@ -28,4 +28,17 @@ kcadm create clients \
     -s clientId="$KEYCLOAK_CLIENT" \
     -s serviceAccountsEnabled=true \
     -s clientAuthenticatorType=federated-jwt \
-    -s attributes="{ \"jwt.credential.issuer\": \"kubernetes\", \"jwt.credential.sub\": \"system:serviceaccount:$APP_NAMESPACE:my-serviceaccount\" }"
+    -s attributes="{ \"jwt.credential.issuer\": \"kubernetes\", \"jwt.credential.sub\": \"system:serviceaccount:$SERVICE_A_NAMESPACE:my-serviceaccount\" }"
+
+echo "Fetch client UUID..." >&2
+CLIENT_UUID=$(kcadm get clients -r "$KEYCLOAK_REALM" \
+    --fields id,clientId \
+    | jq -r --arg cid "$KEYCLOAK_CLIENT" '.[] | select(.clientId==$cid) | .id')
+
+echo "Create audience protocol mapper..." >&2
+kcadm create clients/"$CLIENT_UUID"/protocol-mappers/models \
+    -r "$KEYCLOAK_REALM" \
+    -s name=service-b-audience \
+    -s protocol=openid-connect \
+    -s protocolMapper=oidc-audience-mapper \
+    -s 'config={"included.custom.audience":"service-b","access.token.claim":"true","id.token.claim":"false","lightweight.claim":"false"}'

@@ -13,7 +13,8 @@ KEYCLOAK_PROVIDER	 ?= kubernetes
 KEYCLOAK_REALM		 ?= kubernetes
 KEYCLOAK_CLIENT		 ?= myclient
 KEYCLOAK_TOKEN_URL   ?= http://keycloak.example.com/realms/kubernetes/protocol/openid-connect/token
-APP_NAMESPACE		 ?= service-a
+SERVICE_A_NAMESPACE	 ?= service-a
+SERVICE_B_NAMESPACE  ?= service-b
 
 
 ####################
@@ -64,27 +65,40 @@ setup-keycloak: ## Setup keycloak (realm, identitity provider, client)
 	@KEYCLOAK_PROVIDER=$(KEYCLOAK_PROVIDER) \
 	KEYCLOAK_REALM=$(KEYCLOAK_REALM) \
 	KEYCLOAK_CLIENT=$(KEYCLOAK_CLIENT) \
-	APP_NAMESPACE=$(APP_NAMESPACE) \
+	SERVICE_A_NAMESPACE=$(SERVICE_A_NAMESPACE) \
 	bash $(GIT_ROOT)/keycloak/helper/setup.sh
 
-.PHONY: create-pod
-create-pod: ## Create example pod
-	@echo Create app namespace... >&2
-	@kubectl create ns $(APP_NAMESPACE)
-	@echo Creating pod... >&2
-	@kubectl create -f $(GIT_ROOT)/app/pod.yaml -n $(APP_NAMESPACE)
-	@kubectl wait --namespace $(APP_NAMESPACE) \
+.PHONY: create-service-a
+create-service-a: ## Deploy service-a (Go client that exchanges SA token and calls service-b)
+	@echo Create service-a namespace... >&2
+	@kubectl create ns $(SERVICE_A_NAMESPACE)
+	@echo Deploy service-a... >&2
+	@kubectl create -f $(GIT_ROOT)/service-a/k8s/pod.yaml -n $(SERVICE_A_NAMESPACE)
+	@kubectl wait --namespace $(SERVICE_A_NAMESPACE) \
 		--for=condition=ready pod \
 		--selector=app=service-a \
 		--timeout=90s
 
-.PHONY: retrieve-access-token
-retrieve-access-token: ## Retrieve access token from keycloak
-	@echo Retrieve access token... >&2
-	@TOKEN=$$(kubectl exec my-pod -n $(APP_NAMESPACE) -- cat /var/run/secrets/tokens/kctoken); \
-	curl --insecure -X POST \
-		-d grant_type=client_credentials \
-		-d client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer \
-		-d client_assertion="$$TOKEN" \
-		$(KEYCLOAK_TOKEN_URL) | jq
-		
+.PHONY: build-service-a
+build-service-a: ## Build service-a Docker image and load into kind cluster
+	@echo Build service-a image... >&2
+	@docker build -t service-a:latest $(GIT_ROOT)/service-a
+	@echo Load image into kind cluster... >&2
+	@kind load docker-image service-a:latest --name $(KIND_NAME)
+
+.PHONY: build-service-b
+build-service-b: ## Build service-b Docker image and load into kind cluster
+	@echo Build service-b image... >&2
+	@docker build -t service-b:latest $(GIT_ROOT)/service-b
+	@echo Load image into kind cluster... >&2
+	@kind load docker-image service-b:latest --name $(KIND_NAME)
+
+.PHONY: create-service-b
+create-service-b: ## Deploy service-b
+	@echo Create service-b namespace... >&2
+	@kubectl create ns $(SERVICE_B_NAMESPACE)
+	@echo Deploy service-b... >&2
+	@kubectl apply -f $(GIT_ROOT)/service-b/k8s/
+	@kubectl wait --namespace $(SERVICE_B_NAMESPACE) \
+		--for=condition=available deployment/service-b \
+		--timeout=60s
