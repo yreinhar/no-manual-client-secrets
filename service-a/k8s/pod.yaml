@@ -21,7 +21,7 @@ spec:
     - containerPort: 8080
     env:
     - name: KC_TOKEN_URL
-      value: "http://keycloak.keycloak.svc.cluster.local/realms/kubernetes/protocol/openid-connect/token"
+      value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/kubernetes/protocol/openid-connect/token"
     - name: SERVICE_B_URL
       value: "http://service-b.service-b.svc.cluster.local/hello"
     readinessProbe:

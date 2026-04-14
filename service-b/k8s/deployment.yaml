@@ -23,7 +23,7 @@ spec:
         - containerPort: 8080
         env:
         - name: JWKS_URL
-          value: "http://keycloak.keycloak.svc.cluster.local/realms/kubernetes/protocol/openid-connect/certs"
+          value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/kubernetes/protocol/openid-connect/certs"
         - name: ISSUER
           value: "http://keycloak.example.com/realms/kubernetes"
         - name: AUDIENCE
