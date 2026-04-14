@@ -1,0 +1,1 @@
+# no-manual-client-secrets
