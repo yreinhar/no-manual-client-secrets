@@ -41,6 +41,10 @@ kind-delete-cluster: ## Delete kind cluster
 create-ingress-controller: ## Create ingress controller
 	@echo Create ingress controller... >&2
 	@kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+	@kubectl wait --namespace ingress-nginx \
+		--for=condition=ready pod \
+		--selector=app.kubernetes.io/component=controller \
+		--timeout=90s
 
 .PHONY: create-keycloak
 create-keycloak: ## Create keycloak
@@ -50,6 +54,10 @@ create-keycloak: ## Create keycloak
 	@kubectl create -f $(GIT_ROOT)/keycloak/$(KEYCLOAK_DEPLOYMENT).yaml -n $(KEYCLOAK_NAMESPACE)
 	@echo Create Keycloak ingress... >&2
 	@kubectl create -f $(GIT_ROOT)/keycloak/$(KEYCLOAK_INGRESS).yaml -n $(KEYCLOAK_NAMESPACE)
+	@kubectl wait --namespace $(KEYCLOAK_NAMESPACE) \
+		--for=condition=ready pod \
+		--selector=app=keycloak \
+		--timeout=90s
 
 .PHONY: setup-keycloak
 setup-keycloak: ## Setup keycloak (realm, identitity provider, client)
@@ -65,6 +73,10 @@ create-pod: ## Create example pod
 	@kubectl create ns $(APP_NAMESPACE)
 	@echo Creating pod... >&2
 	@kubectl create -f $(GIT_ROOT)/app/pod.yaml -n $(APP_NAMESPACE)
+	@kubectl wait --namespace $(APP_NAMESPACE) \
+		--for=condition=ready pod \
+		--selector=app=service-a \
+		--timeout=90s
 
 .PHONY: retrieve-access-token
 retrieve-access-token: ## Retrieve access token from keycloak

@@ -2,11 +2,15 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: my-serviceaccount
+  labels:
+    app: service-a
 ---
 apiVersion: v1
 kind: Pod
 metadata:
   name: my-pod
+  labels:
+    app: service-a
 spec:
   serviceAccountName: my-serviceaccount
   containers:
