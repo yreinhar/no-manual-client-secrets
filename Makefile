@@ -7,7 +7,6 @@ KIND_IMAGE           ?= kindest/node:v1.35.1
 KIND_NAME            ?= kind
 KIND_CONFIG          ?= default
 KEYCLOAK_DEPLOYMENT	 ?= keycloak
-KEYCLOAK_INGRESS	 ?= ingress
 KEYCLOAK_NAMESPACE	 ?= keycloak
 KEYCLOAK_PROVIDER	 ?= kubernetes
 KEYCLOAK_REALM		 ?= kubernetes
@@ -38,23 +37,12 @@ kind-delete-cluster: ## Delete kind cluster
 	@echo Delete kind cluster... >&2
 	@kind delete cluster --name $(KIND_NAME)
 
-.PHONY: create-ingress-controller
-create-ingress-controller: ## Create ingress controller
-	@echo Create ingress controller... >&2
-	@kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-	@kubectl wait --namespace ingress-nginx \
-		--for=condition=ready pod \
-		--selector=app.kubernetes.io/component=controller \
-		--timeout=90s
-
 .PHONY: create-keycloak
 create-keycloak: ## Create keycloak
 	@echo Create Keycloak namespace... >&2
 	@kubectl create ns $(KEYCLOAK_NAMESPACE)
 	@echo Create Keycloak deployment... >&2
 	@kubectl create -f $(GIT_ROOT)/keycloak/$(KEYCLOAK_DEPLOYMENT).yaml -n $(KEYCLOAK_NAMESPACE)
-	@echo Create Keycloak ingress... >&2
-	@kubectl create -f $(GIT_ROOT)/keycloak/$(KEYCLOAK_INGRESS).yaml -n $(KEYCLOAK_NAMESPACE)
 	@kubectl wait --namespace $(KEYCLOAK_NAMESPACE) \
 		--for=condition=ready pod \
 		--selector=app=keycloak \
