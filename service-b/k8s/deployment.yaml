@@ -25,7 +25,7 @@ spec:
         - name: JWKS_URL
           value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/kubernetes/protocol/openid-connect/certs"
         - name: ISSUER
-          value: "http://keycloak.example.com/realms/kubernetes"
+          value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/kubernetes"
         - name: AUDIENCE
           value: "service-b"
         readinessProbe:

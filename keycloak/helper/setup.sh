@@ -28,7 +28,7 @@ kcadm create clients \
     -s clientId="$KEYCLOAK_CLIENT" \
     -s serviceAccountsEnabled=true \
     -s clientAuthenticatorType=federated-jwt \
-    -s attributes="{ \"jwt.credential.issuer\": \"kubernetes\", \"jwt.credential.sub\": \"system:serviceaccount:$SERVICE_A_NAMESPACE:my-serviceaccount\" }"
+    -s attributes="{ \"jwt.credential.issuer\": \"kubernetes\", \"jwt.credential.sub\": \"system:serviceaccount:$SERVICE_A_NAMESPACE:my-serviceaccount\", \"jwt.credential.audience\": \"http://keycloak.keycloak.svc.cluster.local:8080/realms/kubernetes\" }"
 
 echo "Fetch client UUID..." >&2
 CLIENT_UUID=$(kcadm get clients -r "$KEYCLOAK_REALM" \

@@ -40,4 +40,4 @@ spec:
       - serviceAccountToken:
           path: kctoken
           expirationSeconds: 600
-          audience: http://keycloak.example.com/realms/kubernetes
+          audience: http://keycloak.keycloak.svc.cluster.local:8080/realms/kubernetes

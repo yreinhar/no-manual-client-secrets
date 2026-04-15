@@ -68,17 +68,6 @@ setup-keycloak: ## Setup keycloak (realm, identitity provider, client)
 	SERVICE_A_NAMESPACE=$(SERVICE_A_NAMESPACE) \
 	bash $(GIT_ROOT)/keycloak/helper/setup.sh
 
-.PHONY: create-service-a
-create-service-a: ## Deploy service-a (Go client that exchanges SA token and calls service-b)
-	@echo Create service-a namespace... >&2
-	@kubectl create ns $(SERVICE_A_NAMESPACE)
-	@echo Deploy service-a... >&2
-	@kubectl create -f $(GIT_ROOT)/service-a/k8s/pod.yaml -n $(SERVICE_A_NAMESPACE)
-	@kubectl wait --namespace $(SERVICE_A_NAMESPACE) \
-		--for=condition=ready pod \
-		--selector=app=service-a \
-		--timeout=90s
-
 .PHONY: build-service-a
 build-service-a: ## Build service-a Docker image and load into kind cluster
 	@echo Build service-a image... >&2
@@ -92,6 +81,17 @@ build-service-b: ## Build service-b Docker image and load into kind cluster
 	@docker build -t service-b:latest $(GIT_ROOT)/service-b
 	@echo Load image into kind cluster... >&2
 	@kind load docker-image service-b:latest --name $(KIND_NAME)
+
+.PHONY: create-service-a
+create-service-a: ## Deploy service-a (Go client that exchanges SA token and calls service-b)
+	@echo Create service-a namespace... >&2
+	@kubectl create ns $(SERVICE_A_NAMESPACE)
+	@echo Deploy service-a... >&2
+	@kubectl create -f $(GIT_ROOT)/service-a/k8s/pod.yaml -n $(SERVICE_A_NAMESPACE)
+	@kubectl wait --namespace $(SERVICE_A_NAMESPACE) \
+		--for=condition=ready pod \
+		--selector=app=service-a \
+		--timeout=90s
 
 .PHONY: create-service-b
 create-service-b: ## Deploy service-b
