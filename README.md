@@ -140,6 +140,7 @@ kubectl port-forward pod/service-a 8080:8080 -n service-a
 ```
 
 Open **http://localhost:8080/** in your browser. 
+
 ```sh
 open http://localhost:8080/
 ```
@@ -148,11 +149,19 @@ The UI has two buttons:
 
 ### Inspect SA Token
 
-Decodes and displays the projected SA token's claims without making any Keycloak call. Useful to verify:
+Decodes the projected SA token's claims **and** exchanges it with Keycloak to display the resulting access token. Useful to inspect the full credential chain in one place:
+
+**SA token claims** — shown first, without a Keycloak call:
 - `iss` → `https://kubernetes.default.svc.cluster.local`
 - `sub` → `system:serviceaccount:service-a:my-serviceaccount`
 - `aud` → `http://keycloak.keycloak.svc.cluster.local:8080/realms/kubernetes`
 - `exp` → token expiry (within 600s of issuance)
+
+**Keycloak access token** — shown below the SA token claims:
+- Raw token string (the JWT as returned by Keycloak)
+- Decoded access token claims (e.g. `iss`, `sub`, `aud: service-b`, `exp`)
+
+If the Keycloak exchange fails (e.g. Keycloak is not yet ready), the SA token claims are still displayed and a `kc_error` message is shown instead of the access token section.
 
 ### Call Service-B
 

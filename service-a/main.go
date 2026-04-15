@@ -63,9 +63,9 @@ type kcTokenResponse struct {
 	ErrorDesc   string `json:"error_description"`
 }
 
-// tokenInfoHandler reads the projected SA token, decodes its JWT payload and
-// returns the claims as JSON. No Keycloak call is made, useful for debugging
-// the audience, issuer and subject before attempting a token exchange.
+// tokenInfoHandler reads the projected SA token, decodes its JWT payload,
+// exchanges it with Keycloak, and returns the SA token claims together with
+// the resulting access token and its decoded claims.
 func tokenInfoHandler(w http.ResponseWriter, _ *http.Request) {
 	raw, err := os.ReadFile(saTokenPath)
 	if err != nil {
@@ -85,11 +85,52 @@ func tokenInfoHandler(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	log.Printf("[token-info] decoded claims: iss=%v aud=%v sub=%v", claims["iss"], claims["aud"], claims["sub"])
-	writeJSON(w, http.StatusOK, map[string]any{
+
+	result := map[string]any{
 		"path":   saTokenPath,
 		"length": len(tokenStr),
 		"claims": claims,
+	}
+
+	// Exchange SA token for a Keycloak access token.
+	resp, err := http.PostForm(kcTokenURL, url.Values{
+		"grant_type":            {"client_credentials"},
+		"client_assertion_type": {"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
+		"client_assertion":      {tokenStr},
 	})
+	if err != nil {
+		result["kc_error"] = fmt.Sprintf("token exchange request: %v", err)
+		log.Printf("[token-info] Keycloak exchange ERROR: %v", err)
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
+	defer resp.Body.Close()
+
+	var tr kcTokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+		result["kc_error"] = fmt.Sprintf("decode Keycloak response (HTTP %d): %v", resp.StatusCode, err)
+		log.Printf("[token-info] Keycloak decode ERROR: %v", err)
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
+	if tr.AccessToken == "" {
+		result["kc_error"] = fmt.Sprintf("no access_token in response (HTTP %d): %s — %s", resp.StatusCode, tr.Error, tr.ErrorDesc)
+		log.Printf("[token-info] Keycloak ERROR: %s", result["kc_error"])
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
+	log.Printf("[token-info] access token received, expires_in=%ds", tr.ExpiresIn)
+	result["access_token"] = tr.AccessToken
+	result["access_token_expires_in"] = tr.ExpiresIn
+
+	atClaims, err := decodeJWTClaims(tr.AccessToken)
+	if err != nil {
+		result["kc_error"] = fmt.Sprintf("decode access token claims: %v", err)
+	} else {
+		result["access_token_claims"] = atClaims
+	}
+
+	writeJSON(w, http.StatusOK, result)
 }
 
 func callServiceBHandler(w http.ResponseWriter, r *http.Request) {
@@ -219,7 +260,11 @@ const indexHTML = `<!DOCTYPE html>
 
 <div id="steps"></div>
 <div id="response-box" class="box"><label>Response from service-b:</label><pre id="response-body"></pre></div>
-<div id="token-box" class="box"><label>Projected SA token claims (decoded, not verified):</label><pre id="token-body"></pre></div>
+<div id="token-box" class="box"><label>Projected SA token claims (decoded):</label><pre id="token-body"></pre></div>
+<div id="access-token-box" class="box">
+  <label>Keycloak access token (raw):</label><pre id="access-token-raw"></pre>
+  <label style="margin-top:12px;display:block">Keycloak access token claims (decoded):</label><pre id="access-token-claims"></pre>
+</div>
 <div id="error-msg"></div>
 
 <script>
@@ -229,12 +274,14 @@ async function runCall() {
   const respBox = document.getElementById('response-box');
   const respBody = document.getElementById('response-body');
   const tokenBox = document.getElementById('token-box');
+  const accessTokenBox = document.getElementById('access-token-box');
   const errMsg = document.getElementById('error-msg');
 
   btn.disabled = true;
   stepsEl.innerHTML = '';
   respBox.style.display = 'none';
   tokenBox.style.display = 'none';
+  accessTokenBox.style.display = 'none';
   errMsg.style.display = 'none';
 
   try {
@@ -266,12 +313,16 @@ async function inspectToken() {
   const btn = document.getElementById('btn-token');
   const tokenBox = document.getElementById('token-box');
   const tokenBody = document.getElementById('token-body');
+  const accessTokenBox = document.getElementById('access-token-box');
+  const accessTokenRaw = document.getElementById('access-token-raw');
+  const accessTokenClaims = document.getElementById('access-token-claims');
   const stepsEl = document.getElementById('steps');
   const errMsg = document.getElementById('error-msg');
 
   btn.disabled = true;
   stepsEl.innerHTML = '';
   tokenBox.style.display = 'none';
+  accessTokenBox.style.display = 'none';
   errMsg.style.display = 'none';
 
   try {
@@ -281,8 +332,19 @@ async function inspectToken() {
       errMsg.textContent = 'Error: ' + data.error;
       errMsg.style.display = 'block';
     } else {
-      tokenBody.textContent = JSON.stringify(data, null, 2);
+      tokenBody.textContent = JSON.stringify(data.claims, null, 2);
       tokenBox.style.display = 'block';
+      if (data.kc_error) {
+        errMsg.textContent = 'Keycloak error: ' + data.kc_error;
+        errMsg.style.display = 'block';
+      }
+      if (data.access_token) {
+        accessTokenRaw.textContent = data.access_token;
+        accessTokenClaims.textContent = data.access_token_claims
+          ? JSON.stringify(data.access_token_claims, null, 2)
+          : '(could not decode)';
+        accessTokenBox.style.display = 'block';
+      }
     }
   } catch (e) {
     errMsg.textContent = 'Request failed: ' + e;
