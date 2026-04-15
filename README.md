@@ -77,7 +77,6 @@ Step-by-step:
 | Component | Role |
 |---|---|
 | Kind | Local Kubernetes cluster with ports 80/443 exposed to the host |
-| NGINX Ingress | Routes `keycloak.example.com` into the cluster (used for the Keycloak UI) |
 | Keycloak nightly | Preview features `client-auth-federated` and `kubernetes-service-accounts` enabled |
 
 ---
@@ -85,12 +84,6 @@ Step-by-step:
 ## Prerequisites
 
 - [`kind`](https://kind.sigs.k8s.io/docs/user/quick-start/#installation), [`kubectl`](https://kubernetes.io/docs/tasks/tools/), [`docker`](https://docs.docker.com/get-docker/), `jq` installed
-- Ports 80 and 443 free on localhost
-- Add the Keycloak hostname to your `/etc/hosts` (needed for the Keycloak admin UI via ingress):
-
-```sh
-echo "127.0.0.1 keycloak.example.com" | sudo tee -a /etc/hosts
-```
 
 ---
 
@@ -102,24 +95,22 @@ Run the steps below in order. Each `make` target waits for its resources to beco
 # 1. Local Kubernetes cluster (Kind) with ports 80/443 forwarded to localhost
 make kind-create-cluster
 
-# 2. NGINX ingress controller
-make create-ingress-controller
 
-# 3. Keycloak StatefulSet + Ingress
+# 2. Keycloak StatefulSet
 make create-keycloak
 
-# 4. Configure Keycloak: realm, Kubernetes OIDC identity provider,
+# 3. Configure Keycloak: realm, Kubernetes OIDC identity provider,
 #    federated-JWT client (myclient), and the service-b audience mapper
 make setup-keycloak
 
-# 5. Build Go images and load them into the Kind cluster
+# 4. Build Go images and load them into the Kind cluster
 make build-service-a
 make build-service-b
 
-# 6. Deploy service-a (pod with projected SA token volume)
+# 5. Deploy service-a (pod with projected SA token volume)
 make create-service-a
 
-# 7. Deploy service-b (Deployment + ClusterIP Service)
+# 6. Deploy service-b (Deployment + ClusterIP Service)
 make create-service-b
 ```
 
