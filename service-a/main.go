@@ -1,16 +1,21 @@
 package main
 
 import (
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 )
+
+//go:embed static
+var staticFiles embed.FS
 
 func getEnv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
@@ -221,150 +226,14 @@ func healthzHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprint(w, "ok")
 }
 
-const indexHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Service-A Demo</title>
-<style>
-  body { font-family: monospace; max-width: 760px; margin: 40px auto; padding: 0 20px; background: #f9f9f9; color: #222; }
-  h1 { font-size: 1.4rem; margin-bottom: 4px; }
-  p.desc { color: #555; margin: 0 0 24px; font-size: 0.9rem; }
-  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
-  button { padding: 10px 22px; font-size: 1rem; font-family: monospace; cursor: pointer; border: none; border-radius: 4px; }
-  button:disabled { opacity: 0.5; cursor: default; }
-  #btn-call  { background: #222; color: #fff; }
-  #btn-token { background: #555; color: #fff; }
-  #steps { margin-top: 24px; }
-  .step { padding: 6px 0; font-size: 0.95rem; }
-  .step.ok  { color: #1a7a1a; }
-  .step.err { color: #b00; }
-  .box { display: none; margin-top: 20px; }
-  .box label { font-weight: bold; font-size: 0.9rem; display: block; margin-bottom: 4px; }
-  pre { background: #eee; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; white-space: pre-wrap; word-break: break-all; margin: 0; }
-  #error-msg { color: #b00; margin-top: 16px; font-size: 0.9rem; display: none; }
-  hr { border: none; border-top: 1px solid #ddd; margin: 28px 0; }
-</style>
-</head>
-<body>
-<h1>Service-A</h1>
-<p class="desc">
-  Reads a Kubernetes projected SA token &rarr; exchanges it with Keycloak (no static secret) &rarr; calls service-b with the resulting Bearer token.
-</p>
-
-<div class="btn-row">
-  <button id="btn-call" onclick="runCall()">Call Service-B</button>
-  <button id="btn-token" onclick="inspectToken()">Inspect SA Token</button>
-</div>
-
-<div id="steps"></div>
-<div id="response-box" class="box"><label>Response from service-b:</label><pre id="response-body"></pre></div>
-<div id="token-box" class="box"><label>Projected SA token claims (decoded):</label><pre id="token-body"></pre></div>
-<div id="access-token-box" class="box">
-  <label>Keycloak access token (raw):</label><pre id="access-token-raw"></pre>
-  <label style="margin-top:12px;display:block">Keycloak access token claims (decoded):</label><pre id="access-token-claims"></pre>
-</div>
-<div id="error-msg"></div>
-
-<script>
-async function runCall() {
-  const btn = document.getElementById('btn-call');
-  const stepsEl = document.getElementById('steps');
-  const respBox = document.getElementById('response-box');
-  const respBody = document.getElementById('response-body');
-  const tokenBox = document.getElementById('token-box');
-  const accessTokenBox = document.getElementById('access-token-box');
-  const errMsg = document.getElementById('error-msg');
-
-  btn.disabled = true;
-  stepsEl.innerHTML = '';
-  respBox.style.display = 'none';
-  tokenBox.style.display = 'none';
-  accessTokenBox.style.display = 'none';
-  errMsg.style.display = 'none';
-
-  try {
-    const res = await fetch('/call-service-b');
-    const data = await res.json();
-
-    (data.steps || []).forEach(s => {
-      const d = document.createElement('div');
-      d.className = 'step ' + (s.ok ? 'ok' : 'err');
-      d.textContent = (s.ok ? '✓' : '✗') + '  ' + s.n + '. ' + s.name + ' — ' + s.detail;
-      stepsEl.appendChild(d);
-    });
-
-    if (data.body) {
-      let pretty = data.body;
-      try { pretty = JSON.stringify(JSON.parse(data.body), null, 2); } catch(_) {}
-      respBody.textContent = pretty;
-      respBox.style.display = 'block';
-    }
-  } catch (e) {
-    errMsg.textContent = 'Request failed: ' + e;
-    errMsg.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function inspectToken() {
-  const btn = document.getElementById('btn-token');
-  const tokenBox = document.getElementById('token-box');
-  const tokenBody = document.getElementById('token-body');
-  const accessTokenBox = document.getElementById('access-token-box');
-  const accessTokenRaw = document.getElementById('access-token-raw');
-  const accessTokenClaims = document.getElementById('access-token-claims');
-  const stepsEl = document.getElementById('steps');
-  const errMsg = document.getElementById('error-msg');
-
-  btn.disabled = true;
-  stepsEl.innerHTML = '';
-  tokenBox.style.display = 'none';
-  accessTokenBox.style.display = 'none';
-  errMsg.style.display = 'none';
-
-  try {
-    const res = await fetch('/token-info');
-    const data = await res.json();
-    if (data.error) {
-      errMsg.textContent = 'Error: ' + data.error;
-      errMsg.style.display = 'block';
-    } else {
-      tokenBody.textContent = JSON.stringify(data.claims, null, 2);
-      tokenBox.style.display = 'block';
-      if (data.kc_error) {
-        errMsg.textContent = 'Keycloak error: ' + data.kc_error;
-        errMsg.style.display = 'block';
-      }
-      if (data.access_token) {
-        accessTokenRaw.textContent = data.access_token;
-        accessTokenClaims.textContent = data.access_token_claims
-          ? JSON.stringify(data.access_token_claims, null, 2)
-          : '(could not decode)';
-        accessTokenBox.style.display = 'block';
-      }
-    }
-  } catch (e) {
-    errMsg.textContent = 'Request failed: ' + e;
-    errMsg.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-  }
-}
-</script>
-</body>
-</html>`
-
-func homeHandler(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, indexHTML)
-}
-
 func main() {
+	staticFS, err := fs.Sub(staticFiles, "static")
+	if err != nil {
+		log.Fatalf("embed sub: %v", err)
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", homeHandler)
+	mux.Handle("/", http.FileServer(http.FS(staticFS)))
 	mux.HandleFunc("GET /call-service-b", callServiceBHandler)
 	mux.HandleFunc("GET /token-info", tokenInfoHandler)
 	mux.HandleFunc("GET /healthz", healthzHandler)
