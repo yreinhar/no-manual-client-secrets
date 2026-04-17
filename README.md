@@ -76,7 +76,7 @@ Step-by-step:
 
 | Component | Role |
 |---|---|
-| Kind | Local Kubernetes cluster with ports 80/443 exposed to the host |
+| Kind | Local Kubernetes cluster |
 | Keycloak nightly | Preview features `client-auth-federated` and `kubernetes-service-accounts` enabled |
 
 ---
@@ -92,7 +92,7 @@ Step-by-step:
 Run the steps below in order. Each `make` target waits for its resources to become ready before returning.
 
 ```sh
-# 1. Local Kubernetes cluster (Kind) with ports 80/443 forwarded to localhost
+# 1. Local Kubernetes cluster (Kind)
 make kind-create-cluster
 
 
@@ -223,6 +223,10 @@ No `clientSecret` is ever set. Keycloak locates the client by matching `sub` and
 
 ---
 
+> 💡 Found this useful? I write about Kubernetes, cloud-native and platform engineering at [opinionatedops.substack.com](https://opinionatedops.substack.com/). Would love to have you there.
+
+---
+
 ## Potential Improvements
 
 ### Token caching in service-a
@@ -274,4 +278,3 @@ Replace `start-dev` with a production-mode deployment:
 ### RBAC hardening
 
 The service-a ServiceAccount is currently granted no explicit RBAC rules (it relies only on the default). In a real environment you would apply the principle of least privilege and ensure the SA token is usable only from the intended pod.
-
